@@ -1,0 +1,10 @@
+hadoop_terasort:
+  description: Run the Apache Hadoop MapReduce Terasort benchmark on a cluster.
+  spark_service:
+    service_type: managed
+    worker_group:
+      vm_spec:
+        GCP:
+          machine_type: n1-standard-8
+          boot_disk_size: 50
+      vm_count: 2

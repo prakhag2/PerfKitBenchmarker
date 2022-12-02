@@ -1,0 +1,41 @@
+kubernetes_nginx:
+  description: Benchmarks Nginx server performance.
+  container_specs:
+    kubernetes_nginx:
+      image: k8s_nginx
+  container_registry: {}
+  container_cluster:
+    cloud: GCP
+    type: Kubernetes
+    vm_count: 1
+    vm_spec: 
+      GCP:
+        machine_type: n1-standard-1
+        zone: us-central1-c
+    nodepools:
+      nginx:
+        vm_count: 1
+        vm_spec:
+          GCP:
+            machine_type: n2-standard-4
+          AWS:
+            machine_type: m6i.xlarge
+          Azure:
+            machine_type: Standard_D4s_v5
+      clients:
+        vm_count: 1
+        vm_spec:
+          GCP:
+            machine_type: n1-standard-1
+          AWS:
+            machine_type: m6i.xlarge
+          Azure:
+            machine_type: Standard_D4s_v5
+  vm_groups:
+    clients:
+      vm_spec: 
+        GCP:
+          machine_type: n1-standard-1
+          zone: us-central1-c
+          image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220927
+      vm_count: 1

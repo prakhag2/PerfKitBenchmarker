@@ -1,0 +1,16 @@
+nginx:
+  description: Benchmarks Nginx server performance.
+  vm_groups:
+    clients:
+      vm_spec: 
+        GCP:
+          machine_type: n1-standard-1
+          zone: us-central1-c
+          image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220927
+      vm_count: 1
+    server:
+      vm_spec: 
+        GCP:
+          machine_type: n2-standard-4
+          image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220927
+      vm_count: 1
