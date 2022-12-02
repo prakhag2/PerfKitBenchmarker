@@ -170,30 +170,30 @@ TEMP_PROFILE_PATH = posixpath.join(vm_util.VM_TMP_DIR, 'profile.yaml')
 # Results documentation:
 # http://docs.datastax.com/en/cassandra/2.1/cassandra/tools/toolsCStressOutput_c.html
 RESULTS_METRICS = (
-    'op rate',  # Number of operations per second performed during the run.
-    'partition rate',  # Number of partition operations per second performed
+    'Op rate',  # Number of operations per second performed during the run.
+    'Partition rate',  # Number of partition operations per second performed
                        # during the run.
-    'row rate',  # Number of row operations per second performed during the run.
-    'latency mean',  # Average latency in milliseconds for each operation during
+    'Row rate',  # Number of row operations per second performed during the run.
+    'Latency mean',  # Average latency in milliseconds for each operation during
                      # that run.
-    'latency median',  # Median latency in milliseconds for each operation
+    'Latency median',  # Median latency in milliseconds for each operation
                        # during that run.
-    'latency 95th percentile',  # 95% of the time the latency was less than
+    'Latency 95th percentile',  # 95% of the time the latency was less than
                                 # the number displayed in the column.
-    'latency 99th percentile',  # 99% of the time the latency was less than
+    'Latency 99th percentile',  # 99% of the time the latency was less than
                                 # the number displayed in the column.
-    'latency 99.9th percentile',  # 99.9% of the time the latency was less than
+    'Latency 99.9th percentile',  # 99.9% of the time the latency was less than
                                   # the number displayed in the column.
-    'latency max',  # Maximum latency in milliseconds.
+    'Latency max',  # Maximum latency in milliseconds.
     'Total partitions',  # Number of partitions.
     'Total errors',  # Number of errors.
     'Total operation time')  # Total operation time.
 
 # Metrics are aggregated between client vms.
-AGGREGATED_METRICS = {'op rate', 'partition rate', 'row rate',
+AGGREGATED_METRICS = {'Op rate', 'Partition rate', 'Row rate',
                       'Total partitions', 'Total errors'}
 # Maximum value will be choisen between client vms.
-MAXIMUM_METRICS = {'latency max'}
+MAXIMUM_METRICS = {'Latency max'}
 
 
 def GetConfig(user_config):
@@ -239,6 +239,7 @@ def GenerateMetadataFromFlags(benchmark_spec):
   if not FLAGS.num_keys:
     metadata['num_keys'] = (
         NUM_KEYS_PER_CORE * vm_dict[CASSANDRA_GROUP][0].NumCpusForBenchmark())
+    # metadata['num_keys'] = 16000000
   else:
     metadata['num_keys'] = FLAGS.num_keys
 
@@ -261,6 +262,7 @@ def GenerateMetadataFromFlags(benchmark_spec):
       'population_size': (FLAGS.cassandra_stress_population_size or
                           max(metadata['num_keys'],
                               metadata['num_preload_keys'])),
+      #'population_size': 16000000,
       'population_dist': FLAGS.cassandra_stress_population_distribution,
       'population_parameters': ','.join(
           FLAGS.cassandra_stress_population_parameters)})
@@ -373,6 +375,8 @@ def RunTestOnLoader(vm, loader_index, operations_per_vm, data_node_ips,
 
   population_range = '%s..%s' % (loader_index * population_per_vm + 1,
                                  (loader_index + 1) * population_per_vm)
+  
+  # population_range = '%s..%s' % (1, 16000000)
   if population_params:
     population_params = '%s,%s' % (population_range, population_params)
   else:
@@ -420,7 +424,7 @@ def RunCassandraStressTest(cassandra_vms, loader_vms, num_operations,
   data_node_ips = [vm.internal_ip for vm in cassandra_vms]
   population_size = population_size or num_operations
   operations_per_vm = int(math.ceil(float(num_operations) / num_loaders))
-  population_per_vm = population_size / num_loaders
+  population_per_vm = int(population_size / num_loaders)
   if num_operations % num_loaders:
     logging.warn(
         'Total number of operations rounded to %s '
@@ -445,14 +449,16 @@ def CollectResultFile(vm, results):
   result_path = _ResultFilePath(vm)
   vm.PullFile(vm_util.GetTempDir(), result_path)
   resp, _ = vm.RemoteCommand('tail -n 20 ' + result_path)
+  logging.info(resp)
   for metric in RESULTS_METRICS:
-    value = regex_util.ExtractGroup(r'%s[\t ]+: ([\d\.:]+)' % metric, resp)
-    if metric == RESULTS_METRICS[-1]:  # Total operation time
-      value = value.split(':')
-      results[metric].append(
-          int(value[0]) * 3600 + int(value[1]) * 60 + int(value[2]))
-    else:
-      results[metric].append(float(value))
+   value = regex_util.ExtractGroup(r'%s[\t ]+: ([ \d\.:,]+)' % metric, resp)
+   value = value.replace(',', '')
+   if metric == RESULTS_METRICS[-1]:  # Total operation time
+     value = value.split(':')
+     results[metric].append(
+         int(value[0]) * 3600 + int(value[1]) * 60 + int(value[2]))
+   else:
+     results[metric].append(float(value))
 
 
 def CollectResults(benchmark_spec, metadata):
@@ -474,19 +480,19 @@ def CollectResults(benchmark_spec, metadata):
   vm_util.RunThreaded(CollectResultFile, args)
   results = []
   for metric in RESULTS_METRICS:
-    if metric in MAXIMUM_METRICS:
-      value = max(raw_results[metric])
-    else:
-      value = math.fsum(raw_results[metric])
-      if metric not in AGGREGATED_METRICS:
-        value = value / len(loader_vms)
-    if metric.startswith('latency'):
-      unit = 'ms'
-    elif metric.endswith('rate'):
-      unit = 'operations per second'
-    elif metric == 'Total operation time':
-      unit = 'seconds'
-    results.append(sample.Sample(metric, value, unit, metadata))
+   if metric in MAXIMUM_METRICS:
+     value = max(raw_results[metric])
+   else:
+     value = math.fsum(raw_results[metric])
+     if metric not in AGGREGATED_METRICS:
+       value = value / len(loader_vms)
+   if metric.startswith('latency'):
+     unit = 'ms'
+   elif metric.endswith('rate'):
+     unit = 'operations per second'
+   elif metric == 'Total operation time':
+     unit = 'seconds'
+   results.append(sample.Sample(metric, value, unit, metadata))
   logging.info('Cassandra results:\n%s', results)
   return results
 
