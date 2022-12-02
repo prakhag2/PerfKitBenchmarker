@@ -30,7 +30,7 @@ class RedisEvictionPolicy():
   VOLATILE_TTL = 'volatile-ttl'
 
 
-_VERSION = flags.DEFINE_string('redis_server_version', '6.2.1',
+_VERSION = flags.DEFINE_string('redis_server_version', '7.0.3',
                                'Version of redis server to use.')
 _IO_THREADS = flags.DEFINE_integer(
     'redis_server_io_threads', 4, 'Only supported for redis version >= 6, the '
