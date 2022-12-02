@@ -19,7 +19,7 @@ import posixpath
 
 from perfkitbenchmarker import linux_packages
 
-ANT_TAR = 'apache-ant-1.9.6-bin.tar.gz'
+ANT_TAR = 'apache-ant-1.10.0-bin.tar.gz'
 ANT_TAR_URL = 'https://archive.apache.org/dist/ant/binaries/' + ANT_TAR
 
 PACKAGE_NAME = 'ant'
@@ -35,8 +35,8 @@ def _Install(vm):
   vm.Install('wget')
   vm.InstallPreprovisionedPackageData(PACKAGE_NAME, PREPROVISIONED_DATA.keys(),
                                       linux_packages.INSTALL_DIR)
-  vm.RemoteCommand('cd {0}  && tar -zxf apache-ant-1.9.6-bin.tar.gz && '
-                   'ln -s {0}/apache-ant-1.9.6/ {1}'.format(
+  vm.RemoteCommand('cd {0}  && tar -zxf apache-ant-1.10.0-bin.tar.gz && '
+                   'ln -s {0}/apache-ant-1.10.0/ {1}'.format(
                        linux_packages.INSTALL_DIR, ANT_HOME_DIR))
 
 
