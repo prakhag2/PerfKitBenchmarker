@@ -30,10 +30,10 @@ from perfkitbenchmarker import vm_util
 import pytz
 
 FLAGS = flags.FLAGS
-PATH = 'aerospike-tools-7.0.5-ubuntu20.04'
+PATH = 'aerospike-tools_8.0.2_ubuntu20.04_x86_64'
 TAR_FILE = f'{PATH}.tgz'
 DOWNLOAD_URL = ('https://download.aerospike.com/'
-                f'artifacts/aerospike-tools/7.0.5/{TAR_FILE}')
+                f'artifacts/aerospike-tools/8.0.2/{TAR_FILE}')
 STDOUT_START = 'Stage 1: default config'
 SUM = lambda x, y: x + y
 METADATA_AGGREGATOR = {
