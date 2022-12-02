@@ -30,9 +30,9 @@ OPENJDK_VERSION = flags.DEFINE_integer(
 
 # Earlier elements of list are preferred.
 # These are the 3 LTS versions of Java.
-# The default 11 is a compromise between the older most popular, but maintenance
+# 11 is a compromise between the older most popular, but maintenance
 # mode Java 8 and the newest Java 17.
-KNOWN_JAVA_VERSIONS = [11, 17, 8]
+KNOWN_JAVA_VERSIONS = [8, 11, 17]
 
 
 def _Install(vm, get_package_name_for_version: Callable[[int], str]):
