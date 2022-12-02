@@ -27,8 +27,8 @@ from absl import flags
 from perfkitbenchmarker import linux_packages
 
 
-TOMCAT_URL = ('https://archive.apache.org/dist/tomcat/tomcat-8/v8.0.28/bin/'
-              'apache-tomcat-8.0.28.tar.gz')
+TOMCAT_URL = ('https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.67/bin/'
+              'apache-tomcat-9.0.67.tar.gz')
 TOMCAT_DIR = posixpath.join(linux_packages.INSTALL_DIR, 'tomcat')
 TOMCAT_HTTP_PORT = 8080
 
