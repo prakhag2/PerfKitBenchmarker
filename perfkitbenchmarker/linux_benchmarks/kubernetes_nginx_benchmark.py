@@ -147,7 +147,7 @@ def Prepare(benchmark_spec):
   vm_util.RunThreaded(lambda f: f(), prepare_fns)
 
   benchmark_spec.nginx_endpoint_ip = (
-      benchmark_spec.container_cluster.GetClusterIP('nginx-cluster'))
+      benchmark_spec.container_cluster.GetLoadBalancerIP('nginx-cluster'))
 
 
 def Run(benchmark_spec):
