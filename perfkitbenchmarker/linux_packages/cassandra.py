@@ -35,9 +35,9 @@ from six.moves import range
 
 
 JNA_JAR_URL = ('https://maven.java.net/content/repositories/releases/'
-               'net/java/dev/jna/jna/4.1.0/jna-4.1.0.jar')
+               'net/java/dev/jna/jna/4.2.2/jna-4.2.2.jar')
 CASSANDRA_GIT_REPRO = 'https://github.com/apache/cassandra.git'
-CASSANDRA_VERSION = 'cassandra-2.1'
+CASSANDRA_VERSION = 'cassandra-4.1'
 CASSANDRA_YAML_TEMPLATE = 'cassandra/cassandra.yaml.j2'
 CASSANDRA_ENV_TEMPLATE = 'cassandra/cassandra-env.sh.j2'
 CASSANDRA_DIR = posixpath.join(linux_packages.INSTALL_DIR, 'cassandra')
