@@ -1,27 +1,12 @@
 # PerfKit Benchmarker
 
-PerfKit Benchmarker is an open effort to define a canonical set of benchmarks to
-measure and compare cloud offerings. It's designed to operate via vendor
-provided command line tools. The benchmark default settings are not tuned for
-any particular platform or instance type. These settings are recommended for
-consistency across services. Only in the rare case where there is a common
-practice like setting the buffer pool size of a database do we change any
-settings.
+This is a fork of [Perfkit Benchmarker] (https://github.com/GoogleCloudPlatform/PerfKitBenchmarker). Please refer the original repository's documentation for details. This section lists the changes vis-a-vis the original repostiory to address a few broken benchmarks and/or using higher tool versions in running the benchmarks.
 
-This README is designed to give you the information you need to get running with
-the benchmarker and the basics of working with the code. The
-[wiki](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki) contains
-more detailed information:
+*   cassandra-env.sh.j2 [https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/cassandra/cassandra-env.sh.j2] - Updated JVM_OPTS to use higher version of jamm-x.x.x.jar
+*   cassandra_stree_benchmark.py [https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_benchmarks/cassandra_stress_benchmark.py] - Changed the result metrics text to be aligned with the higher version of cassandra benchmarking package.
+*   kubernetes_nginx.yaml.j2 [https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/container/kubernetes_nginx/kubernetes_nginx.yaml.j2] - Updated the nginx deployment to use internal lb instead of exposing it via clusterIP
+*   kubernetes_nginx_benchmark.py [https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_benchmarks/kubernetes_nginx_benchmark.py] - Changes to fetch the load balancer ip instead of the cluster ip
 
-*   [FAQ](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki/FAQ)
-*   [Tech Talks](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki/Tech-Talks)
-*   [Governing rules](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki/Governing-Rules)
-*   [Community meeting decks and notes](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki/Community-Meeting-Notes-Decks)
-*   [Design documents](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/wiki/Design-Docs)
-*   You are always welcome to
-    [open an issue](https://github.com/GoogleCloudPlatform/PerfKitBenchmarker/issues),
-    or to join us on #PerfKitBenchmarker on freenode to discuss issues you're
-    having, pull requests, or anything else related to PerfKitBenchmarker
 
 # Licensing
 
