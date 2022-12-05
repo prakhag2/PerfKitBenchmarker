@@ -5,6 +5,7 @@ This is a fork of [Perfkit Benchmarker](https://github.com/GoogleCloudPlatform/P
 *   [cassandra-env.sh.j2](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/cassandra/cassandra-env.sh.j2) - Updated JVM_OPTS to use latest version of jamm-x.x.x.jar
 *   [cassandra.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/cassandra.py) - Updated jna from 4.1.0 to 4.2.2 and cassandra from 2.1 to 4.1
 *   [cassandra_stress_benchmark.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_benchmarks/cassandra_stress_benchmark.py) - Changed result metrics text to align with higher version of cassandra
+*   [cassandra.yaml.j2](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/cassandra/cassandra.yaml.j2) - Required changes to work with cassandra-4.1
 *   [kubernetes_nginx.yaml.j2](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/container/kubernetes_nginx/kubernetes_nginx.yaml.j2) - Updated nginx deployment to use internal lb instead of clusterIP
 *   [kubernetes_nginx_benchmark.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_benchmarks/kubernetes_nginx_benchmark.py) - Changes to fetch load balancer ip instead of cluster ip
 *   [aerospike_client.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/aerospike_client.py) - Updated aerospike-tools from 7.0.5 to 8.0.2
