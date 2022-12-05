@@ -1,5 +1,3 @@
-# PerfKit Benchmarker
-
 This is a fork of [Perfkit Benchmarker] (https://github.com/GoogleCloudPlatform/PerfKitBenchmarker). Please refer the original repository's documentation for details. This section lists the changes vis-a-vis the original repostiory to address a few broken benchmarks and/or using higher tool versions in running the benchmarks.
 
 *   [cassandra-env.sh.j2] (https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/data/cassandra/cassandra-env.sh.j2) - Updated JVM_OPTS to use higher version of jamm-x.x.x.jar
