@@ -11,6 +11,7 @@ This is a fork of [Perfkit Benchmarker](https://github.com/GoogleCloudPlatform/P
 *   [aerospike_client.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/aerospike_client.py) - Updated aerospike-tools from 7.0.5 to 8.0.2
 *   [ant.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/ant.py) - Updated ant from 1.9.6 to 1.10.0
 *   [mongodb_server.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/mongodb_server.py) - Updated mongodb from 3.0 to 6.0
+*   [mongodb_ycsb_benchmark.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_benchmarks/mongodb_ycsb_benchmark.py) - Excluded "()" from mongodb url
 *   [openjdk.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/openjdk.py) - Updated default from jdk 11 to 8
 *   [redis_server.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/redis_server.py) - Updated redis from 6.2.1 to 7.0.3
 *   [tomcat.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/tomcat.py) - Updated tomcat from 8.0.28 to 9.0.67
