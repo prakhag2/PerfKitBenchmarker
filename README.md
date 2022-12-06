@@ -15,4 +15,5 @@ This is a fork of [Perfkit Benchmarker](https://github.com/GoogleCloudPlatform/P
 *   [openjdk.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/openjdk.py) - Updated default from jdk 11 to 8
 *   [redis_server.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/redis_server.py) - Updated redis from 6.2.1 to 7.0.3
 *   [tomcat.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/tomcat.py) - Updated tomcat from 8.0.28 to 9.0.67
+*   [wrk.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/linux_packages/wrk.py) - Increased timeout from 10s to 30s
 *   [gcp_relational_db.py](https://github.com/prakhag2/PerfKitBenchmarker/blob/master/perfkitbenchmarker/providers/gcp/gcp_relational_db.py) - Updated defaults: MySQL 5.7 to 8.0 and Postgres 9.6 to 12
