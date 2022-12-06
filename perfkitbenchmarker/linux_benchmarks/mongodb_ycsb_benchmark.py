@@ -121,7 +121,7 @@ def Run(benchmark_spec):
     A list of sample.Sample objects.
   """
   kwargs = {
-      'mongodb.url': benchmark_spec.mongodb_url,
+      'mongodb.url': benchmark_spec.mongodb_url[0],
       'mongodb.writeConcern': FLAGS.mongodb_writeconcern}
   samples = list(benchmark_spec.executor.LoadAndRun(
       benchmark_spec.vm_groups['clients'],
