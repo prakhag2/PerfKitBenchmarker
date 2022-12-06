@@ -35,7 +35,7 @@ _LUA_SCRIPT_NAME = 'wrk_latency.lua'
 _LUA_SCRIPT_PATH = posixpath.join(WRK_DIR, _LUA_SCRIPT_NAME)
 
 # Default socket / request timeout.
-_TIMEOUT = '10s'
+_TIMEOUT = '30s'
 # WRK always outputs a free text report. _LUA_SCRIPT_NAME (above)
 # writes this prefix before the CSV output begins.
 _CSV_PREFIX = '==CSV==\n'
