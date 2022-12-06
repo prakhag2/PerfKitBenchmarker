@@ -57,7 +57,7 @@ def AptInstall(vm):
   vm.RemoteCommand(
       'echo "deb https://repo.mongodb.org/apt/ubuntu '
       '$(lsb_release -c -s)/mongodb-org/6.0 multiverse" | '
-      'sudo tee /etc/apt/sources.list.d/mongodb-org-3.0.list')
+      'sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list')
   vm.AptUpdate()
   vm.RemoteCommand('sudo apt-get install mongodb-org -y --force-yes')
   _Setup(vm)
