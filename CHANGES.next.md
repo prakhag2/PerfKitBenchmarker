@@ -32,6 +32,7 @@
 
 ### New features:
 
+-   Add support for static systems running debian11
 -   Add ibmcloud as a new provider.
 -   Add prefix/directory support for object storage service runs.
 -   Add MaskRCNN and ReXtNet-101 to the horovod benchmark.
@@ -187,6 +188,7 @@
 -   Add support for T2A (ARM) VMs on GCE.
 -   Add `--dpb_job_poll_interval_secs` flag to control job polling frequency in
     DPB benchmarks.
+-   Add support for more readings in nvidia_power tracking.
 
 ### Bug fixes and maintenance updates:
 

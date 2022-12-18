@@ -55,8 +55,9 @@ flags.DEFINE_string('dpb_dataflow_sdk', None,
                     'will be used by default.')
 flags.DEFINE_multi_string('dpb_dataflow_additional_args', [], 'Additional '
                           'arguments which should be passed to Dataflow job.')
-flags.DEFINE_integer('dpb_dataflow_timeout', 300,
-                     'The default timeout for Dataflow job.')
+flags.DEFINE_integer('dpb_dataflow_timeout', None,
+                     'The default timeout for Dataflow job. Set to None to run'
+                     'indefinitely.')
 flags.DEFINE_string(
     'dpb_dataflow_service_account_key', None,
     'GCS path to service account to run Dataflow jobs.')
@@ -127,7 +128,7 @@ class GcpDpbDataflow(dpb_service.BaseDpbService):
       return f'gs://{self.bucket}/temp/'
     return FLAGS.dpb_dataflow_temp_location
 
-  def _GetStagingLocation(self) -> str:
+  def GetStagingLocation(self) -> str:
     if FLAGS.dpb_dataflow_staging_location is None:
       return f'gs://{self.bucket}/staging/'
     return FLAGS.dpb_dataflow_staging_location
@@ -200,13 +201,8 @@ class GcpDpbDataflow(dpb_service.BaseDpbService):
     cmd += job_arguments
 
     cmd.append(f'--gcpTempLocation={self._GetTempLocation()}')
-    cmd.append(f'--stagingLocation={self._GetStagingLocation()}')
+    cmd.append(f'--stagingLocation={self.GetStagingLocation()}')
     cmd.append(f'--runner={FLAGS.dpb_dataflow_runner}')
-    if not FLAGS.dpb_wordcount_out_base:
-      base_out = self._GetStagingLocation()
-    else:
-      base_out = f'gs://{FLAGS.dpb_wordcount_out_base}'
-    cmd.append(f'--output={os.path.join(base_out, "output")}')
 
     region = util.GetRegionFromZone(FLAGS.dpb_service_zone)
     cmd.append('--region={}'.format(region))
