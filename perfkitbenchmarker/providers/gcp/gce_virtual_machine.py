@@ -279,7 +279,7 @@ class GceSoleTenantNodeTemplate(resource.BaseResource):
     cmd = util.GcloudCommand(self, 'compute', 'sole-tenancy',
                              'node-templates', 'describe', self.name)
     cmd.flags['region'] = self.region
-    _, _, retcode = cmd.Issue(suppress_warning=True, raise_on_failure=False)
+    _, _, retcode = cmd.Issue(raise_on_failure=False)
     return not retcode
 
   def _Delete(self):
@@ -338,7 +338,7 @@ class GceSoleTenantNodeGroup(resource.BaseResource):
     """Returns True if the host exists."""
     cmd = util.GcloudCommand(self, 'compute', 'sole-tenancy',
                              'node-groups', 'describe', self.name)
-    _, _, retcode = cmd.Issue(suppress_warning=True, raise_on_failure=False)
+    _, _, retcode = cmd.Issue(raise_on_failure=False)
     return not retcode
 
   def _Delete(self):
@@ -859,8 +859,7 @@ class GceVirtualMachine(virtual_machine.BaseVirtualMachine):
     """Returns true if the VM exists."""
     getinstance_cmd = util.GcloudCommand(self, 'compute', 'instances',
                                          'describe', self.name)
-    stdout, _, _ = getinstance_cmd.Issue(suppress_warning=True,
-                                         raise_on_failure=False)
+    stdout, _, _ = getinstance_cmd.Issue(raise_on_failure=False)
     try:
       response = json.loads(stdout)
     except ValueError:
@@ -1081,8 +1080,11 @@ class GceVirtualMachine(virtual_machine.BaseVirtualMachine):
   def StartLMNotification(self):
     """Start meta-data server notification subscription."""
     def _Subscribe():
-      self.RobustRemoteCommand(self._GetLMNotificationCommand(),
-                               timeout=LM_NOTIFICATION_TIMEOUT_SECONDS)
+      self.RobustRemoteCommand(
+          self._GetLMNotificationCommand(),
+          timeout=LM_NOTIFICATION_TIMEOUT_SECONDS,
+          ignore_failure=True,
+      )
       self.PullFile(vm_util.GetTempDir(), self._LM_NOTICE_LOG)
       logging.info('[LM Notify] Release live migration lock.')
       self._LM_TIMES_SEMAPHORE.release()
@@ -1109,7 +1111,12 @@ class GceVirtualMachine(virtual_machine.BaseVirtualMachine):
     lm_total_time_key = 'LM_total_time'
     lm_start_time_key = 'Host_maintenance_start'
     lm_end_time_key = 'Host_maintenance_end'
-    events_dict = {'machine_instance': self.instance_number}
+    events_dict = {
+        'machine_instance': self.instance_number,
+        lm_start_time_key: 0,
+        lm_end_time_key: 0,
+        lm_total_time_key: 0,
+    }
     lm_times, _ = self.RemoteCommand(f'cat {self._LM_NOTICE_LOG}')
     if not lm_times: return events_dict
 
@@ -1119,11 +1126,9 @@ class GceVirtualMachine(virtual_machine.BaseVirtualMachine):
       if len(event_info_parts) == 2:
         events_dict[event_info_parts[0]] = event_info_parts[1]
 
-    lm_total_time = 0
-    if lm_start_time_key in events_dict and lm_end_time_key in events_dict:
-      lm_total_time = float(events_dict[lm_end_time_key]) - float(
-          events_dict[lm_start_time_key])
-    events_dict[lm_total_time_key] = lm_total_time
+    events_dict[lm_total_time_key] = float(
+        events_dict[lm_end_time_key]
+    ) - float(events_dict[lm_start_time_key])
     return events_dict
 
   def DownloadPreprovisionedData(self, install_path, module_name, filename,
@@ -1155,7 +1160,7 @@ class GceVirtualMachine(virtual_machine.BaseVirtualMachine):
   def _UpdateInterruptibleVmStatusThroughMetadataService(self):
     _, _, retcode = vm_util.IssueCommand(
         [FLAGS.gsutil_path, 'stat', self.preempt_marker],
-        raise_on_failure=False, suppress_warning=True)
+        raise_on_failure=False)
     # The VM is preempted if the command exits without an error
     self.spot_early_termination = not bool(retcode)
     if self.WasInterrupted():
@@ -1284,6 +1289,9 @@ class BaseLinuxGceVirtualMachine(GceVirtualMachine,
 
   def GetGvnicVersion(self) -> Optional[str]:
     """Returns the gvnic network driver version."""
+    if not gcp_flags.GCE_NIC_RECORD_VERSION.value:
+      return
+
     all_device_properties = {}
     for device_name in self._get_network_device_mtus():
       device = self._GetNetworkDeviceProperties(device_name)
