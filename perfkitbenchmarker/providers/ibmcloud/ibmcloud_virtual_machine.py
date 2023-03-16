@@ -25,7 +25,7 @@ from absl import flags
 from perfkitbenchmarker import disk
 from perfkitbenchmarker import errors
 from perfkitbenchmarker import linux_virtual_machine
-from perfkitbenchmarker import providers
+from perfkitbenchmarker import provider_info
 from perfkitbenchmarker import virtual_machine
 from perfkitbenchmarker import vm_util
 from perfkitbenchmarker import windows_virtual_machine
@@ -45,7 +45,7 @@ _WAIT_TIME_UBUNTU = 600
 class IbmCloudVirtualMachine(virtual_machine.BaseVirtualMachine):
   """Object representing a IBM Cloud Virtual Machine."""
 
-  CLOUD = providers.IBMCLOUD
+  CLOUD = provider_info.IBMCLOUD
   IMAGE_NAME_PREFIX = None
 
   _lock = threading.Lock()
@@ -359,7 +359,7 @@ class IbmCloudVirtualMachine(virtual_machine.BaseVirtualMachine):
 
   def ShouldDownloadPreprovisionedData(self, module_name, filename):
     """Returns whether or not preprovisioned data is available."""
-    return True
+    return False
 
 
 class DebianBasedIbmCloudVirtualMachine(IbmCloudVirtualMachine,
@@ -382,6 +382,11 @@ class Debian10BasedIbmCloudVirtualMachine(DebianBasedIbmCloudVirtualMachine,
   IMAGE_NAME_PREFIX = 'ibm-debian-10-'
 
 
+class Debian11BasedIbmCloudVirtualMachine(DebianBasedIbmCloudVirtualMachine,
+                                          linux_virtual_machine.Debian11Mixin):
+  IMAGE_NAME_PREFIX = 'ibm-debian-11-'
+
+
 class Ubuntu1604BasedIbmCloudVirtualMachine(
     IbmCloudVirtualMachine, linux_virtual_machine.Ubuntu1604Mixin):
   IMAGE_NAME_PREFIX = 'ibm-ubuntu-16-04-'
@@ -402,26 +407,36 @@ class Ubuntu1804BasedIbmCloudVirtualMachine(
     super(Ubuntu1804BasedIbmCloudVirtualMachine, self).PrepareVMEnvironment()
 
 
-class RhelBasedIbmCloudVirtualMachine(IbmCloudVirtualMachine,
-                                      linux_virtual_machine.BaseRhelMixin):
+class Ubuntu2004BasedIbmCloudVirtualMachine(
+    IbmCloudVirtualMachine, linux_virtual_machine.Ubuntu2004Mixin
+):
+  IMAGE_NAME_PREFIX = 'ibm-ubuntu-20-04-'
+
+
+class RhelBasedIbmCloudVirtualMachine(
+    IbmCloudVirtualMachine, linux_virtual_machine.BaseRhelMixin
+):
 
   def PrepareVMEnvironment(self):
     time.sleep(_WAIT_TIME_RHEL)
     super(RhelBasedIbmCloudVirtualMachine, self).PrepareVMEnvironment()
 
 
-class Rhel7BasedIbmCloudVirtualMachine(RhelBasedIbmCloudVirtualMachine,
-                                       linux_virtual_machine.Rhel7Mixin):
+class Rhel7BasedIbmCloudVirtualMachine(
+    RhelBasedIbmCloudVirtualMachine, linux_virtual_machine.Rhel7Mixin
+):
   IMAGE_NAME_PREFIX = 'ibm-redhat-7-6-minimal-amd64'
 
 
-class Rhel8BasedIbmCloudVirtualMachine(RhelBasedIbmCloudVirtualMachine,
-                                       linux_virtual_machine.Rhel8Mixin):
+class Rhel8BasedIbmCloudVirtualMachine(
+    RhelBasedIbmCloudVirtualMachine, linux_virtual_machine.Rhel8Mixin
+):
   IMAGE_NAME_PREFIX = 'ibm-redhat-8-'
 
 
-class WindowsIbmCloudVirtualMachine(IbmCloudVirtualMachine,
-                                    windows_virtual_machine.BaseWindowsMixin):
+class WindowsIbmCloudVirtualMachine(
+    IbmCloudVirtualMachine, windows_virtual_machine.BaseWindowsMixin
+):
   """Support for Windows machines on IBMCloud."""
 
   def __init__(self, vm_spec):

@@ -25,16 +25,18 @@ from perfkitbenchmarker import virtual_machine
 
 
 NVIDIA_DRIVER_LOCATION_BASE = 'https://us.download.nvidia.com/tesla'
+AZURE_NVIDIA_GRID_DRIVER = 'https://download.microsoft.com/download/c/e/9/ce913061-ccf1-4c88-94ff-294e48c55439/NVIDIA-Linux-x86_64-525.85.05-grid-azure.run'
 
 NVIDIA_TESLA_K80 = 'k80'
 NVIDIA_TESLA_P4 = 'p4'
 NVIDIA_TESLA_P100 = 'p100'
 NVIDIA_TESLA_V100 = 'v100'
 NVIDIA_TESLA_T4 = 't4'
+NVIDIA_TESLA_L4 = 'l4'
 NVIDIA_TESLA_A100 = 'a100'
-NVIDIA_TESLA_A10G = 'a10g'
+NVIDIA_TESLA_A10 = 'a10'
 
-EXTRACT_CLOCK_SPEEDS_REGEX = r'(\d*).*,\s*(\d*)'
+EXTRACT_CLOCK_SPEEDS_REGEX = r'(\S*).*,\s*(\S*)'
 
 flag_util.DEFINE_integerlist('gpu_clock_speeds',
                              None,
@@ -45,9 +47,13 @@ flags.DEFINE_boolean('gpu_autoboost_enabled', None,
                      'whether gpu autoboost is enabled')
 
 flags.DEFINE_string(
-    'nvidia_driver_version', '510.47.03',
-    'The version of nvidia driver to install. '
-    'For example, "418.67" or "418.87.01."')
+    'nvidia_driver_version',
+    '525.85.12',
+    (
+        'The version of nvidia driver to install. '
+        'For example, "418.67" or "418.87.01."'
+    ),
+)
 flags.DEFINE_boolean('nvidia_driver_force_install', False,
                      'Whether to install NVIDIA driver, even if it is already '
                      'installed.')
@@ -194,10 +200,12 @@ def GetGpuType(vm):
     return NVIDIA_TESLA_V100
   elif 'T4' in gpu_types[0]:
     return NVIDIA_TESLA_T4
+  elif 'L4' in gpu_types[0]:
+    return NVIDIA_TESLA_L4
   elif 'A100' in gpu_types[0]:
     return NVIDIA_TESLA_A100
-  elif 'A10G' in gpu_types[0]:
-    return NVIDIA_TESLA_A10G
+  elif 'A10' in gpu_types[0]:
+    return NVIDIA_TESLA_A10
   else:
     raise UnsupportedClockSpeedError(
         'Gpu type {0} is not supported by PKB'.format(gpu_types[0]))
@@ -336,7 +344,7 @@ def QueryGpuClockSpeed(vm, device_id):
   clock_speeds = stdout.splitlines()[1]
   matches = regex_util.ExtractAllMatches(EXTRACT_CLOCK_SPEEDS_REGEX,
                                          clock_speeds)[0]
-  return (int(matches[0]), int(matches[1]))
+  return (matches[0], matches[1])
 
 
 def EnablePersistenceMode(vm):
@@ -454,10 +462,14 @@ def Install(vm):
     logging.warn('NVIDIA drivers already detected. Not installing.')
     return
 
-  location = ('{base}/{version}/NVIDIA-Linux-{cpu_arch}-{version}.run'.format(
-      base=NVIDIA_DRIVER_LOCATION_BASE,
-      version=version_to_install,
-      cpu_arch=vm.cpu_arch))
+  if re.match(r'Standard_NV\d+ads_A10_v5', vm.machine_type):
+    location = AZURE_NVIDIA_GRID_DRIVER
+  else:
+    location = '{base}/{version}/NVIDIA-Linux-{cpu_arch}-{version}.run'.format(
+        base=NVIDIA_DRIVER_LOCATION_BASE,
+        version=version_to_install,
+        cpu_arch=vm.cpu_arch,
+    )
 
   vm.Install('wget')
   tokens = re.split('/', location)

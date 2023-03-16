@@ -26,6 +26,7 @@ from typing import List
 import uuid
 
 from absl import flags
+from perfkitbenchmarker import background_tasks
 from perfkitbenchmarker import benchmark_status
 from perfkitbenchmarker import capacity_reservation
 from perfkitbenchmarker import cloud_tpu
@@ -38,6 +39,7 @@ from perfkitbenchmarker import edw_compute_resource
 from perfkitbenchmarker import edw_service
 from perfkitbenchmarker import errors
 from perfkitbenchmarker import flag_util
+from perfkitbenchmarker import key as cloud_key
 from perfkitbenchmarker import messaging_service
 from perfkitbenchmarker import nfs_service
 from perfkitbenchmarker import non_relational_db
@@ -83,7 +85,7 @@ SKIP_CHECK = 'none'
 METADATA_TIME_FORMAT = '%Y%m%dt%H%M%Sz'
 FLAGS = flags.FLAGS
 
-flags.DEFINE_enum('cloud', providers.GCP, providers.VALID_CLOUDS,
+flags.DEFINE_enum('cloud', provider_info.GCP, provider_info.VALID_CLOUDS,
                   'Name of the cloud to use.')
 flags.DEFINE_string('scratch_dir', None,
                     'Base name for all scratch disk directories in the VM. '
@@ -150,6 +152,7 @@ class BenchmarkSpec(object):
     self.spark_service = None
     self.dpb_service = None
     self.container_cluster = None
+    self.key = None
     self.relational_db = None
     self.non_relational_db = None
     self.tpus = []
@@ -324,6 +327,16 @@ class BenchmarkSpec(object):
     non_relational_db_class = non_relational_db.GetNonRelationalDbClass(
         service_type)
     self.non_relational_db = non_relational_db_class.FromSpec(db_spec)
+
+  def ConstructKey(self) -> None:
+    """Initializes the cryptographic key."""
+    key_spec: cloud_key.BaseKeySpec = self.config.key
+    if not key_spec:
+      return
+    logging.info('Constructing key with spec: %s.', key_spec)
+    key_class = cloud_key.GetKeyClass(key_spec.cloud)
+    self.key = key_class(key_spec)
+    self.resources.append(self.key)
 
   def ConstructTpuGroup(self, group_spec):
     """Constructs the BenchmarkSpec's cloud TPU objects."""
@@ -660,7 +673,7 @@ class BenchmarkSpec(object):
 
   def Prepare(self):
     targets = [(vm.PrepareBackgroundWorkload, (), {}) for vm in self.vms]
-    vm_util.RunParallelThreads(targets, len(targets))
+    background_tasks.RunParallelThreads(targets, len(targets))
 
   def Provision(self):
     """Prepares the VMs and networks necessary for the benchmark to run."""
@@ -675,7 +688,9 @@ class BenchmarkSpec(object):
     # In this case the VM's zone attribute, and the VMs network instance
     # need to be updated as well.
     if self.capacity_reservations:
-      vm_util.RunThreaded(lambda res: res.Create(), self.capacity_reservations)
+      background_tasks.RunThreaded(
+          lambda res: res.Create(), self.capacity_reservations
+      )
 
     # Sort networks into a guaranteed order of creation based on dict key.
     # There is a finite limit on the number of threads that are created to
@@ -687,7 +702,7 @@ class BenchmarkSpec(object):
         self.networks[key] for key in sorted(six.iterkeys(self.networks))
     ]
 
-    vm_util.RunThreaded(lambda net: net.Create(), networks)
+    background_tasks.RunThreaded(lambda net: net.Create(), networks)
 
     # VPC peering is currently only supported for connecting 2 VPC networks
     if self.vpc_peering:
@@ -724,13 +739,14 @@ class BenchmarkSpec(object):
       # We separate out creating, booting, and preparing the VMs into two phases
       # so that we don't slow down the creation of all the VMs by running
       # commands on the VMs that booted.
-      vm_util.RunThreaded(
+      background_tasks.RunThreaded(
           self.CreateAndBootVm,
           self.vms,
-          post_task_delay=FLAGS.create_and_boot_post_task_delay)
+          post_task_delay=FLAGS.create_and_boot_post_task_delay,
+      )
       if self.nfs_service and self.nfs_service.CLOUD == nfs_service.UNMANAGED:
         self.nfs_service.Create()
-      vm_util.RunThreaded(self.PrepareVmAfterBoot, self.vms)
+      background_tasks.RunThreaded(self.PrepareVmAfterBoot, self.vms)
 
       sshable_vms = [
           vm for vm in self.vms if vm.OS_TYPE not in os_types.WINDOWS_OS_TYPES
@@ -751,8 +767,10 @@ class BenchmarkSpec(object):
       self.relational_db.Create(restore=should_restore)
     if self.non_relational_db:
       self.non_relational_db.Create(restore=should_restore)
+    if hasattr(self, 'key') and self.key:
+      self.key.Create()
     if self.tpus:
-      vm_util.RunThreaded(lambda tpu: tpu.Create(), self.tpus)
+      background_tasks.RunThreaded(lambda tpu: tpu.Create(), self.tpus)
     if self.edw_service:
       if (not self.edw_service.user_managed and
           self.edw_service.SERVICE_TYPE == 'redshift'):
@@ -790,8 +808,10 @@ class BenchmarkSpec(object):
       self.relational_db.Delete(freeze=should_freeze)
     if hasattr(self, 'non_relational_db') and self.non_relational_db:
       self.non_relational_db.Delete(freeze=should_freeze)
+    if hasattr(self, 'key') and self.key:
+      self.key.Delete()
     if self.tpus:
-      vm_util.RunThreaded(lambda tpu: tpu.Delete(), self.tpus)
+      background_tasks.RunThreaded(lambda tpu: tpu.Delete(), self.tpus)
     if self.edw_service:
       self.edw_service.Delete()
     if hasattr(self, 'edw_compute_resource') and self.edw_compute_resource:
@@ -809,15 +829,16 @@ class BenchmarkSpec(object):
     # and will actually save money (mere seconds of usage).
     if self.capacity_reservations:
       try:
-        vm_util.RunThreaded(lambda reservation: reservation.Delete(),
-                            self.capacity_reservations)
+        background_tasks.RunThreaded(
+            lambda reservation: reservation.Delete(), self.capacity_reservations
+        )
       except Exception:  # pylint: disable=broad-except
         logging.exception('Got an exception deleting CapacityReservations. '
                           'Attempting to continue tearing down.')
 
     if self.vms:
       try:
-        vm_util.RunThreaded(self.DeleteVm, self.vms)
+        background_tasks.RunThreaded(self.DeleteVm, self.vms)
       except Exception:
         logging.exception('Got an exception deleting VMs. '
                           'Attempting to continue tearing down.')
@@ -858,11 +879,11 @@ class BenchmarkSpec(object):
 
   def StartBackgroundWorkload(self):
     targets = [(vm.StartBackgroundWorkload, (), {}) for vm in self.vms]
-    vm_util.RunParallelThreads(targets, len(targets))
+    background_tasks.RunParallelThreads(targets, len(targets))
 
   def StopBackgroundWorkload(self):
     targets = [(vm.StopBackgroundWorkload, (), {}) for vm in self.vms]
-    vm_util.RunParallelThreads(targets, len(targets))
+    background_tasks.RunParallelThreads(targets, len(targets))
 
   def _IsSafeKeyOrValueCharacter(self, char):
     return char.isalpha() or char.isnumeric() or char == '_'
@@ -956,7 +977,7 @@ class BenchmarkSpec(object):
         vm: The BaseVirtualMachine object representing the VM.
     """
     vm.Create()
-    logging.info('VM: %s', vm.ip_address)
+    logging.info('VM: %s (%s)', vm.ip_address, vm.internal_ip)
     logging.info('Waiting for boot completion.')
     vm.AllowRemoteAccessPorts()
     vm.WaitForBootCompletion()

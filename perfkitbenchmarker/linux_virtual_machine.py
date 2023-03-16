@@ -37,17 +37,19 @@ import posixpath
 import re
 import threading
 import time
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Tuple, Union
 import uuid
 
 from absl import flags
 from packaging import version as packaging_version
+from perfkitbenchmarker import background_tasks
 from perfkitbenchmarker import context
 from perfkitbenchmarker import disk
 from perfkitbenchmarker import errors
 from perfkitbenchmarker import linux_packages
 from perfkitbenchmarker import os_types
 from perfkitbenchmarker import regex_util
+from perfkitbenchmarker import sample
 from perfkitbenchmarker import virtual_machine
 from perfkitbenchmarker import vm_util
 
@@ -345,6 +347,8 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
     self.primary_remote_access_port = self.ssh_port
     self.has_private_key = False
     self.has_dpdk = False
+    self.ssh_external_time = None
+    self.ssh_internal_time = None
 
     self._remote_command_script_upload_lock = threading.Lock()
     self._has_remote_command_script = False
@@ -406,8 +410,12 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
           self.PushDataFile(f, remote_path)
         self._has_remote_command_script = True
 
-  def RobustRemoteCommand(self, command, timeout=None,
-                          ignore_failure=False):
+  def RobustRemoteCommand(
+      self,
+      command: str,
+      timeout: Optional[float] = None,
+      ignore_failure: bool = False,
+  ) -> Tuple[str, str]:
     """Runs a command on the VM in a more robust way than RemoteCommand.
 
     This is used for long-running commands that might experience network issues
@@ -469,7 +477,7 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
 
     start_command = '%s 1> %s 2>&1 &' % (' '.join(start_command),
                                          wrapper_log)
-    self.RemoteCommand(start_command)
+    self.RemoteCommand(start_command, stack_level=3)
 
     def _WaitForCommand():
       wait_command = ['python3', wait_path,
@@ -478,20 +486,21 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
       stdout = ''
       while 'Command finished.' not in stdout:
         stdout, _ = self.RemoteCommand(
-            ' '.join(wait_command), timeout=1800)
+            ' '.join(wait_command), timeout=1800, stack_level=4)
       wait_command.extend([
           '--stdout', stdout_file,
           '--stderr', stderr_file,
           '--delete',
       ])  # pyformat: disable
       return self.RemoteCommand(' '.join(wait_command),
-                                ignore_failure=ignore_failure)
+                                ignore_failure=ignore_failure,
+                                stack_level=4)
 
     try:
       return _WaitForCommand()
     except errors.VirtualMachine.RemoteCommandError:
       # In case the error was with the wrapper script itself, print the log.
-      stdout, _ = self.RemoteCommand('cat %s' % wrapper_log)
+      stdout, _ = self.RemoteCommand('cat %s' % wrapper_log, stack_level=3)
       if stdout.strip():
         logging.warning('Exception during RobustRemoteCommand. '
                         'Wrapper script log:\n%s', stdout)
@@ -862,18 +871,40 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
         self.port_listening_time is None):
       self.TestConnectRemoteAccessPort()
       self.port_listening_time = time.time()
-
-    self._WaitForSSH()
+    connect_threads = [
+        (self._WaitForSshExternal, [], {}),
+        (self._WaitForSshInternal, [], {}),
+        ]
+    background_tasks.RunParallelThreads(connect_threads, len(connect_threads))
 
     if self.bootable_time is None:
       self.bootable_time = time.time()
 
+  def _WaitForSshExternal(self):
+    if self.boot_completion_ip_subset not in (
+        virtual_machine.BootCompletionIpSubset.EXTERNAL,
+        virtual_machine.BootCompletionIpSubset.BOTH,
+    ):
+      return
+    self._WaitForSSH(self.ip_address)
+    self.ssh_external_time = time.time()
+
+  def _WaitForSshInternal(self):
+    if self.boot_completion_ip_subset not in (
+        virtual_machine.BootCompletionIpSubset.INTERNAL,
+        virtual_machine.BootCompletionIpSubset.BOTH,
+    ):
+      return
+    self._WaitForSSH(self.internal_ip)
+    self.ssh_internal_time = time.time()
+
   @vm_util.Retry(log_errors=False, poll_interval=1)
-  def _WaitForSSH(self):
+  def _WaitForSSH(self, ip_address: Union[str, None] = None):
     """Waits until the VM is ready."""
     # Always wait for remote host command to succeed, because it is necessary to
     # run benchmarks
-    resp, _ = self.RemoteHostCommand('hostname', retries=1)
+    resp, _ = self.RemoteHostCommand('hostname', retries=1,
+                                     ip_address=ip_address)
     if self.hostname is None:
       self.hostname = resp[:-1]
 
@@ -1081,7 +1112,7 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
                     (retcode, full_cmd, stdout, stderr))
       raise errors.VirtualMachine.RemoteCommandError(error_text)
 
-  def RemoteCommand(self, *args, **kwargs):
+  def RemoteCommand(self, *args, **kwargs) -> Tuple[str, str]:
     """Runs a command on the VM.
 
     Args:
@@ -1095,15 +1126,18 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
     Raises:
       RemoteCommandError: If there was a problem establishing the connection.
     """
+    kwargs = _IncrementStackLevel(**kwargs)
     return self.RemoteCommandWithReturnCode(*args, **kwargs)[:2]
 
-  def RemoteCommandWithReturnCode(self, *args, **kwargs):
+  def RemoteCommandWithReturnCode(
+      self, *args, **kwargs
+  ) -> Tuple[str, str, int]:
     """Runs a command on the VM.
 
     Args:
       *args: Arguments passed directly to RemoteHostCommandWithReturnCode.
       **kwargs: Keyword arguments passed directly to
-          RemoteHostCommandWithReturnCode.
+        RemoteHostCommandWithReturnCode.
 
     Returns:
       A tuple of stdout, stderr, return_code from running the command.
@@ -1111,14 +1145,19 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
     Raises:
       RemoteCommandError: If there was a problem establishing the connection.
     """
+    kwargs = _IncrementStackLevel(**kwargs)
     return self.RemoteHostCommandWithReturnCode(*args, **kwargs)
 
-  def RemoteHostCommandWithReturnCode(self,
-                                      command,
-                                      retries=None,
-                                      ignore_failure=False,
-                                      login_shell=False,
-                                      timeout=None):
+  def RemoteHostCommandWithReturnCode(
+      self,
+      command: str,
+      retries: Optional[int] = None,
+      ignore_failure: bool = False,
+      login_shell: bool = False,
+      timeout: Optional[float] = None,
+      ip_address: Optional[str] = None,
+      stack_level: int = 2,
+  ) -> Tuple[str, str, int]:
     """Runs a command on the VM.
 
     This is guaranteed to run on the host VM, whereas RemoteCommand might run
@@ -1132,6 +1171,10 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
       ignore_failure: Ignore any failure if set to true.
       login_shell: Run command in a login shell.
       timeout: The timeout for IssueCommand.
+      ip_address: The ip address to use to connect to host.  If None, uses
+        self.GetConnectionIp()
+      stack_level: Number of stack frames to skip & get an "interesting" caller,
+        for logging. 2 skips this function, 3 skips this & its caller, etc..
 
     Returns:
       A tuple of stdout, stderr, return_code from running the command.
@@ -1139,19 +1182,27 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
     Raises:
       RemoteCommandError: If there was a problem establishing the connection.
     """
+    stack_level += 1
     if retries is None:
       retries = FLAGS.ssh_retries
     if vm_util.RunningOnWindows():
       # Multi-line commands passed to ssh won't work on Windows unless the
       # newlines are escaped.
       command = command.replace('\n', '\\n')
-    ip_address = self.GetConnectionIp()
+
+    if ip_address is None:
+      ip_address = self.GetConnectionIp()
     user_host = '%s@%s' % (self.user_name, ip_address)
     ssh_cmd = ['ssh', '-A', '-p', str(self.ssh_port), user_host]
     ssh_private_key = (self.ssh_private_key if self.is_static else
                        vm_util.GetPrivateKeyPath())
     ssh_cmd.extend(vm_util.GetSshOptions(ssh_private_key))
-    logging.info('Running on %s via ssh: %s', self.name, command)
+    logging.info(
+        'Running on %s via ssh: %s',
+        self.name,
+        command,
+        stacklevel=stack_level,
+    )
     try:
       if login_shell:
         ssh_cmd.extend(['-t', '-t', 'bash -l -c "%s"' % command])
@@ -1165,6 +1216,7 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
             timeout=timeout,
             should_pre_log=False,
             raise_on_failure=False,
+            stack_level=stack_level,
         )
         # Retry on 255 because this indicates an SSH failure
         if retcode != RETRYABLE_SSH_RETCODE:
@@ -1183,7 +1235,7 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
 
     return (stdout, stderr, retcode)
 
-  def RemoteHostCommand(self, *args, **kwargs):
+  def RemoteHostCommand(self, *args, **kwargs) -> Tuple[str, str]:
     """Runs a command on the VM.
 
     This is guaranteed to run on the host VM, whereas RemoteCommand might run
@@ -1200,6 +1252,7 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
     Raises:
       RemoteCommandError: If there was a problem establishing the connection.
     """
+    kwargs = _IncrementStackLevel(**kwargs)
     return self.RemoteHostCommandWithReturnCode(*args, **kwargs)[:2]
 
   def _CheckRebootability(self):
@@ -1616,6 +1669,17 @@ class BaseLinuxMixin(virtual_machine.BaseOsMixin):
         device['ModelNumber'] = device_info[2].strip()
         response.append(device)
       return response
+
+
+def _IncrementStackLevel(**kwargs: Any) -> Any:
+  """Increments the stack_level variable stored in kwargs."""
+  if 'stack_level' in kwargs:
+    kwargs['stack_level'] += 1
+  else:
+    # Default to 3 - one for helper function this is called from, one for
+    # RemoteHostCommandWithReturnCode, & one for logging.info itself.
+    kwargs['stack_level'] = 3
+  return kwargs
 
 
 class ClearMixin(BaseLinuxMixin):
@@ -2229,6 +2293,11 @@ class Debian10Mixin(BaseDebianMixin):
   OS_TYPE = os_types.DEBIAN10
 
 
+class Debian10BackportsMixin(Debian10Mixin):
+  """Debian 10 with backported kernel."""
+  OS_TYPE = os_types.DEBIAN10_BACKPORTS
+
+
 class Debian11Mixin(BaseDebianMixin):
   """Class holding Debian 11 specific VM methods and attributes."""
   OS_TYPE = os_types.DEBIAN11
@@ -2238,6 +2307,11 @@ class Debian11Mixin(BaseDebianMixin):
     # partitioning.
     self.InstallPackages('fdisk')
     super().PrepareVMEnvironment()
+
+
+class Debian11BackportsMixin(Debian11Mixin):
+  """Debian 11 with backported kernel."""
+  OS_TYPE = os_types.DEBIAN11_BACKPORTS
 
 
 class BaseUbuntuMixin(BaseDebianMixin):
@@ -2379,7 +2453,7 @@ class ContainerizedDebianMixin(BaseDebianMixin):
     # Escapes bash sequences
     command = command.replace("'", r"'\''")
 
-    logging.info('Docker running: %s', command)
+    logging.info('Docker running: %s', command, stacklevel=2)
     command = "sudo docker exec %s bash -c '%s'" % (self.docker_id, command)
     return self.RemoteHostCommand(command, **kwargs)
 
@@ -2498,6 +2572,17 @@ def _ParseTextProperties(text):
     yield current_data
 
 
+def CreateLscpuSamples(vms):
+  """Creates samples from linux VMs of lscpu output."""
+  samples = []
+  for vm in vms:
+    if vm.OS_TYPE in os_types.LINUX_OS_TYPES:
+      metadata = {'node_name': vm.name}
+      metadata.update(vm.CheckLsCpu().data)
+      samples.append(sample.Sample('lscpu', 0, '', metadata))
+  return samples
+
+
 class LsCpuResults(object):
   """Holds the contents of the command lscpu."""
 
@@ -2511,7 +2596,7 @@ class LsCpuResults(object):
       lscpu: A string in the format of "lscpu" command
 
     Raises:
-      ValueError: if the format of lscpu isnt what was expected for parsing
+      ValueError: if the format of lscpu isn't what was expected for parsing
 
     Example value of lscpu is:
     Architecture:          x86_64
@@ -2550,6 +2635,24 @@ class LsCpuResults(object):
     self.cores_per_socket = GetInt('Core(s) per socket')
     self.socket_count = GetInt('Socket(s)')
     self.threads_per_core = GetInt('Thread(s) per core')
+
+
+def CreateProcCpuSamples(vms):
+  """Creates samples from linux VMs of lscpu output."""
+  samples = []
+  for vm in vms:
+    if vm.OS_TYPE not in os_types.LINUX_OS_TYPES:
+      continue
+    data = vm.CheckProcCpu()
+    metadata = {'node_name': vm.name}
+    metadata.update(data.GetValues())
+    samples.append(sample.Sample('proccpu', 0, '', metadata))
+    metadata = {'node_name': vm.name}
+    for processor_id, raw_values in data.mappings.items():
+      values = ['%s=%s' % item for item in raw_values.items()]
+      metadata['proc_{}'.format(processor_id)] = ';'.join(sorted(values))
+    samples.append(sample.Sample('proccpu_mapping', 0, '', metadata))
+  return samples
 
 
 class ProcCpuResults(object):
@@ -2646,7 +2749,7 @@ class JujuMixin(BaseDebianMixin):
   is_controller = False
 
   # A reference to the juju controller, useful when operations occur against
-  # a unit's VM but need to be preformed from the controller.
+  # a unit's VM but need to be performed from the controller.
   controller = None
 
   vm_group = None

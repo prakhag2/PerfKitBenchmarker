@@ -27,9 +27,11 @@ from perfkitbenchmarker import dpb_service
 from perfkitbenchmarker import edw_service
 from perfkitbenchmarker import errors
 from perfkitbenchmarker import flag_util
+from perfkitbenchmarker import key
 from perfkitbenchmarker import managed_memory_store
 from perfkitbenchmarker import non_relational_db
 from perfkitbenchmarker import placement_group
+from perfkitbenchmarker import provider_info
 from perfkitbenchmarker import providers
 from perfkitbenchmarker import relational_db_spec
 from perfkitbenchmarker import spark_service
@@ -167,6 +169,10 @@ class _DpbServiceSpec(spec.BaseSpec):
             'default': None,
             'none_ok': True
         }),
+        'dataflow_max_worker_count': (option_decoders.IntDecoder, {
+            'default': None,
+            'none_ok': True,
+        }),
         'dataproc_serverless_core_count': (option_decoders.IntDecoder, {
             'default': None,
             'none_ok': True,
@@ -251,7 +257,7 @@ class _TpuGroupSpec(spec.BaseSpec):
     result = super(_TpuGroupSpec, cls)._GetOptionDecoderConstructions()
     result.update({
         'cloud': (option_decoders.EnumDecoder, {
-            'valid_values': providers.VALID_CLOUDS
+            'valid_values': provider_info.VALID_CLOUDS
         }),
         'tpu_cidr_range': (option_decoders.StringDecoder, {
             'default': None
@@ -924,7 +930,7 @@ class _ContainerClusterSpec(spec.BaseSpec):
             'none_ok': True
         }),
         'cloud': (option_decoders.EnumDecoder, {
-            'valid_values': providers.VALID_CLOUDS
+            'valid_values': provider_info.VALID_CLOUDS
         }),
         'type': (option_decoders.StringDecoder, {
             'default': container_service.KUBERNETES,
@@ -1147,7 +1153,7 @@ class _CloudRedisSpec(spec.BaseSpec):
     result = super(_CloudRedisSpec, cls)._GetOptionDecoderConstructions()
     result.update({
         'cloud': (option_decoders.EnumDecoder, {
-            'valid_values': providers.VALID_CLOUDS
+            'valid_values': provider_info.VALID_CLOUDS
         }),
         'redis_name': (option_decoders.StringDecoder, {
             'default': None,
@@ -1439,7 +1445,7 @@ class _MessagingServiceSpec(spec.BaseSpec):
     result = super()._GetOptionDecoderConstructions()
     result.update({
         'cloud': (option_decoders.EnumDecoder, {
-            'valid_values': providers.VALID_CLOUDS}),
+            'valid_values': provider_info.VALID_CLOUDS}),
         # TODO(odiego): Add support for push delivery mechanism
         'delivery': (option_decoders.EnumDecoder, {
             'valid_values': ('pull',)}),
@@ -1508,7 +1514,7 @@ class _DataDiscoveryServiceSpec(spec.BaseSpec):
     result = super()._GetOptionDecoderConstructions()
     result.update({
         'cloud': (option_decoders.EnumDecoder, {
-            'valid_values': providers.VALID_CLOUDS
+            'valid_values': provider_info.VALID_CLOUDS
         }),
         'service_type': (
             option_decoders.EnumDecoder,
@@ -1567,6 +1573,26 @@ class _DataDiscoveryServiceDecoder(option_decoders.TypeVerifier):
         self._GetOptionFullName(component_full_name), flag_values,
         **data_discovery_service_config)
     return result
+
+
+class _KeyDecoder(option_decoders.TypeVerifier):
+  """Validates the key dict of a benchmark config object."""
+
+  def __init__(self, **kwargs):
+    super().__init__(valid_types=(dict,), **kwargs)
+
+  def Decode(self, value, component_full_name, flag_values):
+    """Verifies the key dict of a benchmark config object."""
+    key_config = super().Decode(value, component_full_name, flag_values)
+    if 'cloud' in key_config:
+      providers.LoadProvider(key_config['cloud'])
+      key_spec_class = key.GetKeySpecClass(key_config['cloud'])
+    else:
+      raise errors.Config.InvalidValue(
+          'Required attribute "cloud" missing from "key" config.')
+    return key_spec_class(
+        self._GetOptionFullName(component_full_name), flag_values,
+        **key_config)
 
 
 class BenchmarkConfigSpec(spec.BaseSpec):
@@ -1687,6 +1713,10 @@ class BenchmarkConfigSpec(spec.BaseSpec):
             'default': None,
         }),
         'data_discovery_service': (_DataDiscoveryServiceDecoder, {
+            'default': None,
+            'none_ok': True,
+        }),
+        'key': (_KeyDecoder, {
             'default': None,
             'none_ok': True,
         })
