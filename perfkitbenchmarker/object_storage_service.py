@@ -29,6 +29,9 @@ flags.DEFINE_string('object_storage_credential_file', None,
                     'Directory of credential file.')
 flags.DEFINE_string('boto_file_location', None,
                     'The location of the boto file.')
+OBJECT_TTL_DAYS = flags.DEFINE_integer(
+    'object_ttl_days', None,
+    'The object TTL in days to set on any bucket created.')
 
 FLAGS = flags.FLAGS
 
@@ -103,7 +106,7 @@ class ObjectStorageService(
   def Copy(self, src_url, dst_url, recursive=False):
     """Copy files, objects and directories.
 
-    Note: Recursive copy behavior mimics gsutil cp -r where:
+    Note -r where:
     Copy(/foo/bar, /baz, True) copies the directory bar into /baz/bar whereas
     aws s3 cp --recursive would copy the contents of bar into /baz.
 

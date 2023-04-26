@@ -43,6 +43,9 @@
 -   Remove Dataflow parameter --maxNumWorkers by default and add
     dataflow_max_worker_count in spec to allow users to set this parameter on
     their own.
+-   Remove flag fio_write_against_multiple_clients from FIO.
+-   Drop windows coremark benchmark.
+-   Remove cudnn linux package.
 
 ### New features:
 
@@ -102,9 +105,6 @@
 -   Add GCP optimized Rocky Linux 8 and 9 OSes.
 -   Add mtu to os_metadata in linux_virtual_machine.
 -   Add support for TPC-DS/H benchmarks on AWS EMR Serverless.
--   Add dpb_sparksql_serverless_benchmark, which submits one job for each
-    TPC-DS/H query and measures the whole job execution time, instead of only
-    the query run time.
 -   Add Intel MPI benchmark.
 -   Add support for Azure ARM VMs.
 -   Add an HTTP endpoint polling utility & incorporate it into app_service.
@@ -122,6 +122,16 @@
 -   Add iPerf interval reporting.
 -   Add support for DynamoDB on demand instances.
 -   Add support for Debian 10 & 11 with backported kernels on AWS.
+-   Add fio_netperf benchmark, which executes the run stages of fio and netperf
+    benchmarks in parallel using the first 2 VM's in benchmark_spec.
+-   Add Google Kubernetes Engine based DPB service to run flink benchmarks.
+-   Add support for Amazon Linux 2023.
+-   Add support for multi-network creation/attachment. PKB currently does not
+    handle subnet creation on an existing network.
+-   Add support for GCE Confidential VM's.
+-   Add cos-dev, cos105, cos101, cos97, and cos93 OS support for GCP.
+-   Add --object_ttl_days flag for lifecycle management of created buckets.
+-   Add support for multi-NIC netperf throughput on AWS.
 
 ### Enhancements:
 
@@ -239,6 +249,10 @@
     (i.e. GCS/S3) where the queries will be used for `dpb_sparksql_benchmark`.
 -   Add `--gke_node_system_config` flag to the GKE provider for passing kubelet
     and linux parameters.
+-   Add 'Time to Create' and 'Time to Running' samples on cluster_boot for
+    GCEVirtualMachine and AWSVirtualMachine instances that are provisioned
+    with asynchronous 'create' invocations.
+-   Add `--dpb_sparksql_streams` to run TPC-DS/H throughput runs.
 
 ### Bug fixes and maintenance updates:
 
@@ -358,3 +372,13 @@
 -   Fix how environment variable is set for direct path
 -   Fix incorrect string concatenation causing Snowflake Throughput runs to
     fail.
+-   Remove reboot after changing sysctl and load via sysctl -p instead.
+-   Clean up settings related to the Cloud Bigtable Veneer client.
+-   Don't install HBase dependencies when using the Cloud Bigtable Veneer
+    client.
+-   Require monitoring.write scope for client side metrics when using the Cloud
+    Bigtable veneer client.
+-   Add flag dpb_job_type and support running native flink pipeline on
+    dataproc_flink.
+-   Cleanup Coremark compiling flags.
+-   Remove cygwin codepath.

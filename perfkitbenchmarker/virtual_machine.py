@@ -116,6 +116,15 @@ _ASSIGN_EXTERNAL_IP = flags.DEFINE_boolean(
     True,
     'If True, an external (public) IP will be created for VMs. '
     'If False, --connect_via_internal_ip may also be needed.')
+flags.DEFINE_string(
+    'boot_startup_script',
+    None,
+    (
+        'Startup script to run during boot. '
+        'Requires provider support, only implemented for Linux VMs '
+        'on GCP, AWS, Azure for now.'
+    ),
+)
 
 
 @enum.unique
@@ -209,6 +218,7 @@ class BaseVmSpec(spec.BaseSpec):
         EXTERNAL) to use for generating background network workload.
     disable_interrupt_moderation: If true, disables interrupt moderation.
     disable_rss: = If true, disables rss.
+    boot_startup_script: Startup script to run during boot.
     vm_metadata: = Additional metadata for the VM.
   """
 
@@ -230,6 +240,7 @@ class BaseVmSpec(spec.BaseSpec):
     self.disable_interrupt_moderation = None
     self.disable_rss = None
     self.vm_metadata: Dict[str, Any] = None
+    self.boot_startup_script: str = None
     super(BaseVmSpec, self).__init__(*args, **kwargs)
 
   @classmethod
@@ -281,6 +292,8 @@ class BaseVmSpec(spec.BaseSpec):
       config_values['disable_rss'] = flag_values.disable_rss
     if flag_values['vm_metadata'].present:
       config_values['vm_metadata'] = flag_values.vm_metadata
+    if flag_values['boot_startup_script'].present:
+      config_values['boot_startup_script'] = flag_values.boot_startup_script
 
     if 'gpu_count' in config_values and 'gpu_type' not in config_values:
       raise errors.Config.MissingOption(
@@ -334,6 +347,8 @@ class BaseVmSpec(spec.BaseSpec):
             'valid_values': [vm_util.IpAddressSubset.EXTERNAL,
                              vm_util.IpAddressSubset.INTERNAL]}),
         'background_cpu_threads': (option_decoders.IntDecoder, {
+            'none_ok': True, 'default': None}),
+        'boot_startup_script': (option_decoders.StringDecoder, {
             'none_ok': True, 'default': None}),
         'vm_metadata': (option_decoders.ListDecoder, {
             'item_decoder': option_decoders.StringDecoder(),
@@ -427,7 +442,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """Create and mount Ram disk."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def RemoteCommand(
       self,
       command: str,
@@ -567,17 +581,14 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
 
     return time.time() - before_resume_timestamp
 
-  @abc.abstractmethod
   def _Reboot(self):
     """OS-specific implementation of reboot command."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def _Suspend(self):
     """Provider specific implementation of a VM suspend command."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def _Resume(self):
     """Provider specific implementation of a VM resume command."""
     raise NotImplementedError()
@@ -627,7 +638,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     stop_duration_sec = time.time() - before_stop_timestamp
     return stop_duration_sec
 
-  @abc.abstractmethod
   def _Stop(self):
     """Provider-specific implementation of stop command."""
     raise NotImplementedError()
@@ -636,7 +646,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """Provider-specific checks after stop command."""
     pass
 
-  @abc.abstractmethod
   def RemoteCopy(self, file_path, remote_path='', copy_to=True):
     """Copies a file to or from the VM.
 
@@ -650,7 +659,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def WaitForBootCompletion(self):
     """Waits until VM is has booted.
 
@@ -659,7 +667,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def _WaitForSSH(self, ip_address: Union[str, None] = None):
     """Waits until VM is ready.
 
@@ -671,7 +678,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def VMLastBootTime(self):
     """Returns the time the VM was last rebooted as reported by the VM.
     """
@@ -706,17 +712,14 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
     """Disables RSS on the VM."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def Install(self, package_name):
     """Installs a PerfKit package on the VM."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def Uninstall(self, package_name):
     """Uninstalls a PerfKit package on the VM."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def PackageCleanup(self):
     """Cleans up all installed packages.
 
@@ -833,7 +836,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
 
     return scratch_disk
 
-  @abc.abstractmethod
   def _PrepareScratchDisk(self, scratch_disk, disk_spec):
     """Helper method to format and mount scratch disk.
 
@@ -881,7 +883,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
       return self.num_cpus - self.num_disable_cpus
     return self.num_cpus
 
-  @abc.abstractmethod
   def _GetNumCpus(self):
     """Returns the number of logical CPUs on the VM.
 
@@ -909,12 +910,10 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
       self._total_memory_kb = self._GetTotalMemoryKb()
     return self._total_memory_kb
 
-  @abc.abstractmethod
   def _GetTotalFreeMemoryKb(self):
     """Returns the amount of free physical memory on the VM in Kilobytes."""
     raise NotImplementedError()
 
-  @abc.abstractmethod
   def _GetTotalMemoryKb(self):
     """Returns the amount of physical memory on the VM in Kilobytes.
 
@@ -939,7 +938,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
         self._reachable[target_vm] = False
     return self._reachable[target_vm]
 
-  @abc.abstractmethod
   def _TestReachable(self, ip):
     """Returns True if the VM can reach the ip address and False otherwise."""
     raise NotImplementedError()
@@ -968,7 +966,6 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
           raise NotImplementedError()
         workload.Prepare(self)
 
-  @abc.abstractmethod
   def SetReadAhead(self, num_sectors, devices):
     """Set read-ahead value for block devices.
 
@@ -1046,9 +1043,9 @@ class BaseOsMixin(six.with_metaclass(abc.ABCMeta, object)):
       self._is_smt_enabled = self._IsSmtEnabled()
     return self._is_smt_enabled
 
-  @abc.abstractmethod
   def _IsSmtEnabled(self):
     """Whether SMT is enabled on the vm."""
+    raise NotImplementedError()
 
   def _GetNfsService(self):
     """Returns the NfsService created in the benchmark spec.
@@ -1137,6 +1134,10 @@ class BaseVirtualMachine(BaseOsMixin, resource.BaseResource):
     background_network_ip_type: Type of IP address to use for generating
       background network workload
     vm_group: The VM group this VM is associated with, if applicable.
+    create_operation_name: The name of a VM's create command operation, used to
+      poll the operation in WaitUntilRunning.
+    create_return_time: The time at which a VM's create command returns.
+    is_running_time: The time at which the VM entered the running state.
   """
 
   is_static = False
@@ -1173,6 +1174,7 @@ class BaseVirtualMachine(BaseOsMixin, resource.BaseResource):
     self.assign_external_ip = vm_spec.assign_external_ip
     self.ip_address = None
     self.internal_ip = None
+    self.internal_ips = []
     self.user_name = DEFAULT_USERNAME
     self.password = None
     self.ssh_public_key = vm_util.GetPublicKeyPath()
@@ -1199,6 +1201,10 @@ class BaseVirtualMachine(BaseOsMixin, resource.BaseResource):
     self.vm_group = None
     self.id = None
     self.is_aarch64 = False
+    self.create_operation_name = None
+    self.create_return_time = None
+    self.is_running_time = None
+    self.boot_startup_script = vm_spec.boot_startup_script
 
   @property
   @classmethod
@@ -1225,6 +1231,14 @@ class BaseVirtualMachine(BaseOsMixin, resource.BaseResource):
           ' specify --connect_via_internal_ip?'
       )
     return self.ip_address
+
+  def GetInternalIPs(self):
+    """Gets the Internal IP's for the VM."""
+    if self.internal_ips:
+      return self.internal_ips
+    elif self.internal_ip:
+      return [self.internal_ip]
+    return []
 
   def CreateScratchDisk(self, disk_spec_id, disk_spec):
     """Create a VM's scratch disk.
